@@ -38,5 +38,5 @@ if __name__ == "__main__":
     subject = " Upload Completed - Online Fruit Store"
     body = "All fruits are uploaded to our website successfully. A detailed list is attached to this email."
     attachment_path = filename
-    message = emails.generate(sender, recipient, subject, body, attachment_path)
+    message = emails.generate_error_report(sender, recipient, subject, body, attachment_path)
     emails.send(message)
