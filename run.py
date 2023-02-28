@@ -3,7 +3,7 @@
 import os
 import requests
 
-url = "http://34.133.132.84/fruits/"
+url = "http://localhost/fruits/"
 user = os.getenv('USER')
 descriptions_path = '/home/{}/supplier-data/descriptions/'.format(user)
 for description in os.listdir(descriptions_path):
