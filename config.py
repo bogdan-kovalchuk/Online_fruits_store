@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
 import os
+import re
+from urllib.parse import urlparse
 
 
 DEFAULT_FRUIT_URL = "http://localhost/fruits/"
@@ -13,6 +15,27 @@ DEFAULT_IMAGE_HEIGHT = 400
 CPU_THRESHOLD = 80.0
 MEMORY_THRESHOLD_MB = 500
 DISK_THRESHOLD_PERCENT = 20
+
+
+def validate_url(url, label="URL"):
+    if not url or not isinstance(url, str):
+        raise ValueError("{} must be a non-empty string".format(label))
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            "{} must use http or https scheme, got: {}".format(label, url)
+        )
+    if not parsed.netloc:
+        raise ValueError("{} must have a host: {}".format(label, url))
+    return url
+
+
+def validate_email(address, label="Email"):
+    if not address or not isinstance(address, str):
+        raise ValueError("{} must be a non-empty string".format(label))
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", address):
+        raise ValueError("{} is not a valid email: {}".format(label, address))
+    return address
 
 
 def get_user():
