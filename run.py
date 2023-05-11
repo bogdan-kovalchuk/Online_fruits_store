@@ -7,6 +7,8 @@ import requests
 import config
 import validation
 
+HTTP_TIMEOUT = 30
+
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="Upload fruit descriptions.")
@@ -15,16 +17,18 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
-def process_descriptions(descriptions_path, url, dry_run=False):
+def process_descriptions(descriptions_path, url, dry_run=False, timeout=HTTP_TIMEOUT):
+    config.validate_url(url)
     results = []
-    for description in os.listdir(descriptions_path):
+    for description in sorted(os.listdir(descriptions_path)):
         if description.endswith('txt'):
             description_path = os.path.join(descriptions_path, description)
             file_errors = validation.validate_description_file(description_path)
             if file_errors:
                 results.append(("skip", description, "; ".join(file_errors)))
                 continue
-            lines = open(description_path, 'r').read().split('\n')
+            with open(description_path, 'r') as f:
+                lines = f.read().split('\n')
             image = os.path.splitext(description)[0] + ".jpeg"
             lines = lines[:3]
             lines.append(image)
@@ -38,8 +42,18 @@ def process_descriptions(descriptions_path, url, dry_run=False):
             if dry_run:
                 results.append(("dry-run", description, json_object))
             else:
-                r = requests.post(url, data=json_object)
-                results.append(("posted", description, r.status_code))
+                try:
+                    r = requests.post(url, data=json_object, timeout=timeout)
+                    if r.status_code >= 400:
+                        results.append(("error", description, "HTTP {}".format(r.status_code)))
+                    else:
+                        results.append(("posted", description, r.status_code))
+                except requests.exceptions.Timeout:
+                    results.append(("error", description, "timeout after {}s".format(timeout)))
+                except requests.exceptions.ConnectionError as e:
+                    results.append(("error", description, "connection error"))
+                except requests.exceptions.RequestException as e:
+                    results.append(("error", description, str(e)))
     return results
 
 
@@ -54,13 +68,19 @@ def main(argv=None):
             print("Error: {}".format(e), file=sys.stderr)
         sys.exit(1)
     results = process_descriptions(descriptions_path, url, dry_run=args.dry_run)
+    has_errors = False
     for action, name, detail in results:
         if action == "skip":
             print("Skipping {}: {}".format(name, detail))
         elif action == "dry-run":
             print("Would post: {} -> {}".format(name, detail))
+        elif action == "error":
+            print("Error posting {}: {}".format(name, detail), file=sys.stderr)
+            has_errors = True
         else:
             print("Posted {} (status {})".format(name, detail))
+    if has_errors:
+        sys.exit(2)
 
 
 if __name__ == "__main__":
