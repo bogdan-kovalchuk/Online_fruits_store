@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import emails
 import psutil
 import socket
@@ -81,11 +82,21 @@ def send_alerts(alerts, sender_fn=None, recipient_fn=None, send_fn=None):
 
 
 if __name__ == "__main__":
-    alerts = check_health()
+    try:
+        alerts = check_health()
+    except (ValueError, TypeError) as e:
+        print("Configuration error: {}".format(e), file=sys.stderr)
+        sys.exit(1)
+
     if alerts:
         results = send_alerts(alerts)
+        has_failures = False
         for alert, ok in results:
             status = "sent" if ok else "failed"
             print("Alert {}: {}".format(status, alert))
+            if not ok:
+                has_failures = True
+        sys.exit(3)
     else:
         print("All checks passed.")
+        sys.exit(0)
