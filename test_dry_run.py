@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from unittest import mock
 
+from PIL import Image
+
 import run
 import changeImage
 import supplier_image_upload
@@ -48,8 +50,7 @@ class TestChangeImageDryRun(unittest.TestCase):
     def test_dry_run_does_not_convert(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tiff_path = os.path.join(tmpdir, "apple.tiff")
-            with open(tiff_path, "w") as f:
-                f.write("fake")
+            Image.new("RGB", (2, 2), "red").save(tiff_path, format="TIFF")
             results = changeImage.convert_images(tmpdir, dry_run=True)
             self.assertEqual(len(results), 1)
             self.assertEqual(results[0][0], "dry-run")
@@ -64,8 +65,7 @@ class TestUploadDryRun(unittest.TestCase):
     def test_dry_run_does_not_upload(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             img_path = os.path.join(tmpdir, "apple.jpeg")
-            with open(img_path, "w") as f:
-                f.write("fake")
+            Image.new("RGB", (2, 2), "red").save(img_path, format="JPEG")
             with mock.patch("supplier_image_upload.requests.post") as mock_post:
                 results = supplier_image_upload.upload_images(tmpdir, "http://localhost/upload/", dry_run=True)
                 mock_post.assert_not_called()

@@ -2,11 +2,33 @@
 
 import os
 
+from PIL import Image, UnidentifiedImageError
+
 
 REQUIRED_DESCRIPTION_KEYS = ["name", "weight", "description", "image_name"]
 
 ALLOWED_IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".tiff", ".tif", ".png"}
 MAX_IMAGE_SIZE_BYTES = 50 * 1024 * 1024
+
+
+def parse_weight(value):
+    if isinstance(value, bool):
+        raise ValueError("Weight is not a valid integer: {}".format(value))
+    if isinstance(value, int):
+        weight = value
+    elif isinstance(value, str):
+        parts = value.strip().split()
+        if not parts:
+            raise ValueError("Weight is not a valid integer: {}".format(value))
+        try:
+            weight = int(parts[0])
+        except ValueError:
+            raise ValueError("Weight is not a valid integer: {}".format(value))
+    else:
+        raise ValueError("Weight is not a valid integer: {}".format(value))
+    if weight <= 0:
+        raise ValueError("Weight must be positive, got {}".format(weight))
+    return weight
 
 
 def validate_description_file(path):
@@ -30,11 +52,9 @@ def validate_description_data(data):
             errors.append("Missing required key: {}".format(key))
     if "weight" in data:
         try:
-            w = int(data["weight"]) if not isinstance(data["weight"], int) else data["weight"]
-            if w <= 0:
-                errors.append("Weight must be positive, got {}".format(w))
-        except (ValueError, TypeError):
-            errors.append("Weight is not a valid integer: {}".format(data["weight"]))
+            parse_weight(data["weight"])
+        except ValueError as error:
+            errors.append(str(error))
     if "name" in data and not str(data["name"]).strip():
         errors.append("Name must not be empty")
     return errors
@@ -71,6 +91,12 @@ def validate_image_file(path, max_size_bytes=MAX_IMAGE_SIZE_BYTES):
                 size, max_size_bytes, path
             )
         )
+    elif not errors:
+        try:
+            with Image.open(path) as image:
+                image.verify()
+        except (UnidentifiedImageError, OSError, SyntaxError, ValueError):
+            errors.append("Image content is invalid or corrupt: {}".format(path))
     return errors
 
 

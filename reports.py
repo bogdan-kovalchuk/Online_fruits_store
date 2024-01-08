@@ -2,10 +2,6 @@
 
 import os
 
-from reportlab.platypus import SimpleDocTemplate
-from reportlab.platypus import Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet
-
 
 def validate_report_inputs(filename, title, paragraph):
     errors = []
@@ -21,6 +17,9 @@ def validate_report_inputs(filename, title, paragraph):
 
 
 def generate_report(filename, title, paragraph):
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+
     errors = validate_report_inputs(filename, title, paragraph)
     if errors:
         raise ValueError("; ".join(errors))

@@ -4,12 +4,26 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 import requests
 import config
 import validation
 
 HTTP_TIMEOUT = 30
-DEFAULT_STATE_FILE = os.path.join(tempfile.gettempdir(), "fruit_store_state.json") if False else "/tmp/fruit_store_state.json"
+DEFAULT_STATE_FILE = os.path.join(tempfile.gettempdir(), "fruit_store_state.json")
+
+
+def _empty_state():
+    return {"posted": []}
+
+
+def _normalize_state(state):
+    if not isinstance(state, dict):
+        return _empty_state()
+    posted = state.get("posted")
+    if not isinstance(posted, list) or any(not isinstance(item, str) for item in posted):
+        return _empty_state()
+    return {"posted": list(dict.fromkeys(posted))}
 
 
 def parse_args(argv=None):
@@ -23,17 +37,37 @@ def parse_args(argv=None):
 
 def load_state(state_file):
     if not state_file or not os.path.isfile(state_file):
-        return {"posted": []}
-    with open(state_file, 'r') as f:
-        return json.load(f)
+        return _empty_state()
+    try:
+        with open(state_file, 'r') as f:
+            return _normalize_state(json.load(f))
+    except (OSError, json.JSONDecodeError):
+        return _empty_state()
 
 
 def save_state(state_file, state):
+    if not state_file:
+        raise ValueError("State file path must not be empty")
+    normalized = _normalize_state(state)
     parent = os.path.dirname(state_file)
     if parent and not os.path.isdir(parent):
         os.makedirs(parent, exist_ok=True)
-    with open(state_file, 'w') as f:
-        json.dump(state, f)
+    temp_parent = parent or os.curdir
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='w', dir=temp_parent, prefix='.fruit-store-state-',
+            suffix='.tmp', delete=False
+        ) as temporary_file:
+            temporary_path = temporary_file.name
+            json.dump(normalized, temporary_file)
+            temporary_file.flush()
+            os.fsync(temporary_file.fileno())
+        os.replace(temporary_path, state_file)
+        temporary_path = None
+    finally:
+        if temporary_path and os.path.exists(temporary_path):
+            os.unlink(temporary_path)
 
 
 def process_descriptions(descriptions_path, url, dry_run=False, timeout=HTTP_TIMEOUT, state=None):
@@ -59,7 +93,11 @@ def process_descriptions(descriptions_path, url, dry_run=False, timeout=HTTP_TIM
             lines.append(image)
             keys = ["name", "weight", "description", "image_name"]
             json_object = dict(zip(keys, lines))
-            json_object["weight"] = int(json_object["weight"].split()[0])
+            try:
+                json_object["weight"] = validation.parse_weight(json_object["weight"])
+            except ValueError as error:
+                results.append(("skip", description, str(error)))
+                continue
             data_errors = validation.validate_description_data(json_object)
             if data_errors:
                 results.append(("skip", description, "; ".join(data_errors)))

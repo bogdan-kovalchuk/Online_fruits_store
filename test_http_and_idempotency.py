@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
+from PIL import Image
 import requests
 import run
 import supplier_image_upload
@@ -66,11 +67,14 @@ class TestRunHTTPErrors(unittest.TestCase):
 
 
 class TestUploadHTTPErrors(unittest.TestCase):
+    def _make_image(self, tmpdir, name="apple.jpeg"):
+        image_path = os.path.join(tmpdir, name)
+        Image.new("RGB", (2, 2), "red").save(image_path, format="JPEG")
+        return image_path
+
     def test_timeout_returns_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            img_path = os.path.join(tmpdir, "apple.jpeg")
-            with open(img_path, "wb") as f:
-                f.write(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+            self._make_image(tmpdir)
             with mock.patch("supplier_image_upload.requests.post", side_effect=requests.exceptions.Timeout):
                 results = supplier_image_upload.upload_images(tmpdir, "http://localhost/upload/")
             self.assertEqual(results[0][0], "error")
@@ -78,9 +82,7 @@ class TestUploadHTTPErrors(unittest.TestCase):
 
     def test_connection_error_returns_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            img_path = os.path.join(tmpdir, "apple.jpeg")
-            with open(img_path, "wb") as f:
-                f.write(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+            self._make_image(tmpdir)
             with mock.patch("supplier_image_upload.requests.post", side_effect=requests.exceptions.ConnectionError):
                 results = supplier_image_upload.upload_images(tmpdir, "http://localhost/upload/")
             self.assertEqual(results[0][0], "error")
@@ -88,9 +90,7 @@ class TestUploadHTTPErrors(unittest.TestCase):
 
     def test_http_403_returns_error(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            img_path = os.path.join(tmpdir, "apple.jpeg")
-            with open(img_path, "wb") as f:
-                f.write(b"\xff\xd8\xff\xe0" + b"\x00" * 100)
+            self._make_image(tmpdir)
             mock_resp = mock.Mock()
             mock_resp.status_code = 403
             with mock.patch("supplier_image_upload.requests.post", return_value=mock_resp):

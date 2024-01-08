@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import html
 import os
 import sys
 
@@ -30,8 +31,8 @@ def process_data(descriptions_path):
             with open(description_path, 'r') as f:
                 lines = f.read().split('\n')
             lines = lines[:2]
-            lines[0] = "name: " + lines[0]
-            lines[1] = "weight: " + lines[1]
+            lines[0] = "name: " + html.escape(lines[0])
+            lines[1] = "weight: " + html.escape(lines[1])
             lines.append("")
             descriptions.extend(lines)
     return "<br/>".join(descriptions)
@@ -48,19 +49,30 @@ def run(descriptions_path, report_path, sender, recipient, dry_run=False):
     subject = "Upload Completed - Online Fruit Store"
     body = "All fruits are uploaded to our website successfully. A detailed list is attached to this email."
 
+    report_errors = reports.validate_report_inputs(report_path, title, paragraph)
+    email_errors = []
+    for address, label in ((sender, "Sender"), (recipient, "Recipient")):
+        try:
+            config.validate_email(address, label)
+        except ValueError as error:
+            email_errors.append(str(error))
+    errors = report_errors + email_errors
+    if errors:
+        return errors
+
     if dry_run:
         print("Would generate report: {}".format(report_path))
         print("Would send email from {} to {}".format(sender, recipient))
         return []
 
-    report_errors = reports.validate_report_inputs(report_path, title, paragraph)
-    if report_errors:
-        return report_errors
-
-    reports.generate_report(report_path, title, paragraph)
-    config.validate_email(sender, "Sender")
-    config.validate_email(recipient, "Recipient")
-    message = emails.generate(sender, recipient, subject, body, report_path)
+    try:
+        reports.generate_report(report_path, title, paragraph)
+    except Exception as error:
+        return ["Failed to generate report: {}".format(error)]
+    try:
+        message = emails.generate(sender, recipient, subject, body, report_path)
+    except (OSError, ValueError) as error:
+        return ["Failed to construct email: {}".format(error)]
     sent = emails.send(message)
     if not sent:
         return ["Failed to send email via SMTP"]

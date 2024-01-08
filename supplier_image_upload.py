@@ -21,7 +21,7 @@ def upload_images(images_path, url, dry_run=False, timeout=HTTP_TIMEOUT):
     config.validate_url(url)
     results = []
     for image_name in sorted(os.listdir(images_path)):
-        if image_name.endswith('jpeg'):
+        if os.path.splitext(image_name)[1].lower() in {'.jpeg', '.jpg'}:
             image_path = os.path.join(images_path, image_name)
             img_errors = validation.validate_image_file(image_path)
             if img_errors:
